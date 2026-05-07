@@ -41,6 +41,7 @@ export interface AttemptResult {
   points: number;
   timestamp: number;
   mode: GameMode;
+  category: Category;
 }
 
 export interface GameSession {

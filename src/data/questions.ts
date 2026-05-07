@@ -459,15 +459,68 @@ const raw: Omit<QuizQuestion, "id">[] = [
   { year: 1999, event: "Matrix har premiere", category: "kultur", difficulty: "middels" },
 ];
 
-// Deduplicate exact event-text duplicates and assign stable ids
-const seen = new Set<string>();
-export const QUESTIONS: QuizQuestion[] = raw
-  .filter((q) => {
-    const key = `${q.year}|${q.event}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  })
-  .map((q, i) => ({ ...q, id: i + 1 }));
+import wikipediaEventsRaw from "./events.json";
 
+type WikipediaEvent = Omit<QuizQuestion, "id">;
+const wikipediaEvents = wikipediaEventsRaw as unknown as WikipediaEvent[];
+
+// Lower-case, accent/punct-stripped, single-spaced — used for fuzzy dedup.
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // diacritics
+    .replace(/[^a-zæøå0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Build the final dataset by combining the curated list (priority) with the
+// Wikipedia-sourced events. Curated entries win on duplicate keys, and
+// Wikipedia entries that closely overlap a curated entry from the same year
+// are dropped to avoid near-duplicates.
+function buildDataset(): QuizQuestion[] {
+  const seenKeys = new Set<string>();
+  const result: Omit<QuizQuestion, "id">[] = [];
+  const curatedByYear = new Map<number, string[]>();
+
+  for (const c of raw) {
+    const key = `${c.year}|${norm(c.event).slice(0, 50)}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    result.push(c);
+    const list = curatedByYear.get(c.year) ?? [];
+    list.push(norm(c.event));
+    curatedByYear.set(c.year, list);
+  }
+
+  for (const w of wikipediaEvents) {
+    const wn = norm(w.event);
+    if (wn.length < 12) continue;
+    const key = `${w.year}|${wn.slice(0, 50)}`;
+    if (seenKeys.has(key)) continue;
+
+    // Cross-check against curated events of the same year.
+    const sameYear = curatedByYear.get(w.year);
+    if (sameYear) {
+      const isDup = sameYear.some((cn) => {
+        const head = cn.slice(0, 30);
+        return head.length >= 20 && wn.includes(head);
+      });
+      if (isDup) continue;
+    }
+
+    seenKeys.add(key);
+    result.push(w);
+  }
+
+  // Stable sort by year, then by event text — keeps history page readable.
+  result.sort((a, b) =>
+    a.year - b.year || a.event.localeCompare(b.event, "nb"),
+  );
+
+  return result.map((q, i) => ({ ...q, id: i + 1 }));
+}
+
+export const QUESTIONS: QuizQuestion[] = buildDataset();
 export const TOTAL_QUESTIONS = QUESTIONS.length;

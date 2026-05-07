@@ -5,7 +5,7 @@ import { ArrowRight, Sparkles, Hourglass, BookOpen, Zap } from "lucide-react";
 import { GameModeGrid } from "@/components/GameModeCard";
 import { useEffect, useState } from "react";
 import { loadStats } from "@/lib/storage";
-import { TOTAL_QUESTIONS } from "@/data/questions";
+import { TOTAL_QUESTIONS } from "@/data/totals";
 import type { PlayerStats } from "@/types/game";
 
 export default function HomePage() {

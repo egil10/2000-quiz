@@ -6,6 +6,35 @@ import { modeConfig, pointsForGuess } from "@/lib/scoring";
 import { buildAttempt } from "@/lib/storage";
 import type { AttemptResult, GameMode, QuizQuestion } from "@/types/game";
 
+// Bucket the dataset by century once at module load. Used by the balanced
+// sampler so a 10-question round doesn't end up 70% 1900s just because
+// Wikipedia covers recent history more thoroughly.
+const BUCKETS: QuizQuestion[][] = (() => {
+  const out: QuizQuestion[][] = [];
+  for (const q of QUESTIONS) {
+    const c = Math.min(20, Math.floor(q.year / 100));
+    if (!out[c]) out[c] = [];
+    out[c].push(q);
+  }
+  return out;
+})();
+const NON_EMPTY_BUCKETS = BUCKETS.filter((b) => b && b.length > 0);
+
+function pickBalanced(count: number): QuizQuestion[] {
+  if (NON_EMPTY_BUCKETS.length === 0) return [];
+  const used = new Set<number>();
+  const result: QuizQuestion[] = [];
+  let safety = count * 50;
+  while (result.length < count && safety-- > 0) {
+    const bucket = NON_EMPTY_BUCKETS[Math.floor(Math.random() * NON_EMPTY_BUCKETS.length)];
+    const candidate = bucket[Math.floor(Math.random() * bucket.length)];
+    if (used.has(candidate.id)) continue;
+    used.add(candidate.id);
+    result.push(candidate);
+  }
+  return result;
+}
+
 type Phase = "guessing" | "revealing" | "ended";
 
 interface State {
@@ -27,9 +56,10 @@ type Action =
 
 function buildQueue(mode: GameMode): QuizQuestion[] {
   const cfg = modeConfig(mode);
-  const all = shuffle(QUESTIONS);
-  if (cfg.questionCount == null) return all;
-  return all.slice(0, cfg.questionCount);
+  // Endless modes still need a queue (we'll regenerate before exhausting); 200
+  // is plenty for one sitting and keeps memory cheap.
+  const target = cfg.questionCount ?? 200;
+  return shuffle(pickBalanced(target));
 }
 
 function init(mode: GameMode): State {
@@ -96,7 +126,14 @@ export function useGameState(initialMode: GameMode = "klassisk") {
     (guess: number) => {
       if (!current) return;
       const points = pointsForGuess(guess, current.year, mode);
-      const attempt = buildAttempt(current.id, guess, current.year, points, mode);
+      const attempt = buildAttempt(
+        current.id,
+        guess,
+        current.year,
+        points,
+        mode,
+        current.category,
+      );
       dispatch({ type: "submit", guess, points, attempt });
     },
     [current, mode],

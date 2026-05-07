@@ -1,5 +1,8 @@
 import type { AttemptResult, Category, GameMode, GameSession, PlayerStats } from "@/types/game";
 
+// AttemptResult.category is now stored on the attempt itself, so this module
+// no longer needs to import the (large) QUESTIONS dataset.
+
 const KEY = "arstallquiz.v1.stats";
 const SETTINGS_KEY = "arstallquiz.v1.settings";
 
@@ -61,8 +64,6 @@ export function resetStats() {
   window.localStorage.removeItem(KEY);
 }
 
-import { QUESTIONS } from "@/data/questions";
-
 export function recordSession(prev: PlayerStats, session: GameSession): PlayerStats {
   const next: PlayerStats = JSON.parse(JSON.stringify(prev));
   let streak = 0;
@@ -80,9 +81,8 @@ export function recordSession(prev: PlayerStats, session: GameSession): PlayerSt
     } else {
       streak = 0;
     }
-    const q = QUESTIONS.find((x) => x.id === a.questionId);
-    if (q) {
-      const c = next.byCategory[q.category];
+    if (a.category && next.byCategory[a.category]) {
+      const c = next.byCategory[a.category];
       const newCount = c.count + 1;
       c.avgDiff = (c.avgDiff * c.count + a.diff) / newCount;
       c.count = newCount;
@@ -131,6 +131,7 @@ export function buildAttempt(
   actual: number,
   points: number,
   mode: GameMode,
+  category: Category,
 ): AttemptResult {
   return {
     questionId,
@@ -140,5 +141,6 @@ export function buildAttempt(
     points,
     timestamp: Date.now(),
     mode,
+    category,
   };
 }
