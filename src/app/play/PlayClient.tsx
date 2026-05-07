@@ -87,7 +87,7 @@ export default function PlayClient() {
 
   if (state.phase === "ended") {
     return (
-      <div className="container-narrow py-10 sm:py-14">
+      <div className="container-medium py-10 sm:py-14">
         <FinalScreen
           attempts={state.attempts}
           totalPoints={totalPoints}
@@ -100,12 +100,13 @@ export default function PlayClient() {
   }
 
   if (!state.current) {
-    return <div className="container-narrow py-20 text-center text-mute">Forbereder spill...</div>;
+    return <div className="container-medium py-20 text-center text-mute">Forbereder spill...</div>;
   }
 
   return (
-    <div className="container-narrow py-8 sm:py-12 space-y-6">
+    <div className="container-medium py-8 sm:py-12 space-y-6">
       <ScoreBar
+        attempts={state.attempts}
         totalPoints={totalPoints}
         index={state.index}
         total={cfg.questionCount}

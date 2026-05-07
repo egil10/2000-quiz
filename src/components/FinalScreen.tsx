@@ -51,8 +51,9 @@ export function FinalScreen({ attempts, totalPoints, mode, onRestart, highScore 
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Spørsmål" value={attempts.length.toString()} />
+        <Stat label="Total bom" value={`${attempts.reduce((s, a) => s + a.diff, 0).toLocaleString("nb-NO")} år`} />
         <Stat label="Snitt bom" value={`${Math.round(avgDiff)} år`} />
         <Stat label="Blink" value={perfect.toString()} />
       </div>
