@@ -1,17 +1,21 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Repeat, Hand, Timer } from "lucide-react";
 import { useGameState } from "@/hooks/useGameState";
 import { QuizCard } from "@/components/QuizCard";
 import { YearInput } from "@/components/YearInput";
 import { ResultBlock } from "@/components/ResultBlock";
 import { ScoreBar } from "@/components/ScoreBar";
 import { FinalScreen } from "@/components/FinalScreen";
-import { loadStats, recordSession, saveStats } from "@/lib/storage";
+import { loadSettings, loadStats, recordSession, saveSettings, saveStats } from "@/lib/storage";
+import type { AutoAdvance } from "@/lib/storage";
 import type { GameMode, GameSession, PlayerStats } from "@/types/game";
 import { modeConfig } from "@/lib/scoring";
 
 const VALID: GameMode[] = ["klassisk", "lyn", "hardcore", "sudden"];
+const AUTO_VALUES: AutoAdvance[] = ["off", "3", "5"];
+const AUTO_MS: Record<AutoAdvance, number> = { off: 0, "3": 3000, "5": 5000 };
 
 export default function PlayClient() {
   const params = useSearchParams();
@@ -26,12 +30,13 @@ export default function PlayClient() {
   const [timeLeft, setTimeLeft] = useState<number | null>(cfg.timePerQuestion);
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [persisted, setPersisted] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState<AutoAdvance>("off");
 
   useEffect(() => {
     setStats(loadStats());
+    setAutoAdvance(loadSettings().autoAdvance);
   }, []);
 
-  // Reset slider/timer at the start of each question
   useEffect(() => {
     if (state.phase === "guessing") {
       setGuess(1500);
@@ -56,6 +61,30 @@ export default function PlayClient() {
     return () => clearInterval(id);
   }, [state.phase, state.index, cfg.timePerQuestion, guess, submit]);
 
+  // Auto-advance during reveal phase
+  useEffect(() => {
+    if (state.phase !== "revealing") return;
+    if (autoAdvance === "off") return;
+    const ms = AUTO_MS[autoAdvance];
+    const id = window.setTimeout(() => next(), ms);
+    return () => window.clearTimeout(id);
+  }, [state.phase, state.index, autoAdvance, next]);
+
+  // Keyboard: Enter / Space / N → advance during reveal (when not focused on input)
+  useEffect(() => {
+    if (state.phase !== "revealing") return;
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      if (e.key === "Enter" || e.key === " " || e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        next();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [state.phase, next]);
+
   // Persist stats once when game ends
   useEffect(() => {
     if (state.phase !== "ended" || persisted) return;
@@ -78,6 +107,13 @@ export default function PlayClient() {
   const restartFresh = (mode: GameMode = state.mode) => {
     setPersisted(false);
     restart(mode);
+  };
+
+  const cycleAutoAdvance = () => {
+    const i = AUTO_VALUES.indexOf(autoAdvance);
+    const nextValue = AUTO_VALUES[(i + 1) % AUTO_VALUES.length];
+    setAutoAdvance(nextValue);
+    saveSettings({ ...loadSettings(), autoAdvance: nextValue });
   };
 
   const lastEvent = useMemo(() => {
@@ -105,6 +141,29 @@ export default function PlayClient() {
 
   return (
     <div className="container-medium py-8 sm:py-12 space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs uppercase tracking-widest text-mute">
+          Modus: <span className="text-soft">{cfg.name}</span>
+        </p>
+        <button
+          type="button"
+          onClick={cycleAutoAdvance}
+          className="btn-ghost text-xs"
+          aria-label="Bytt mellom manuell og auto-avansering"
+        >
+          {autoAdvance === "off" ? (
+            <>
+              <Hand className="w-3.5 h-3.5" /> Manuell
+            </>
+          ) : (
+            <>
+              <Timer className="w-3.5 h-3.5" /> Auto · {autoAdvance}s
+            </>
+          )}
+          <Repeat className="w-3 h-3 ml-1 opacity-60" />
+        </button>
+      </div>
+
       <ScoreBar
         attempts={state.attempts}
         totalPoints={totalPoints}
@@ -146,6 +205,7 @@ export default function PlayClient() {
           }
           onNext={next}
           eventText={lastEvent}
+          autoAdvanceMs={autoAdvance !== "off" ? AUTO_MS[autoAdvance] : undefined}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, AlertCircle } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { clampYear } from "@/lib/utils";
 import { eraForYear } from "@/lib/eras";
 
@@ -13,41 +14,59 @@ interface Props {
 
 export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const errorTimer = useRef<number | null>(null);
   const [text, setText] = useState<string>(String(value));
   const [focused, setFocused] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Keep the visible text in sync with the parent value when the parent drives
-  // changes (slider, +/- buttons, new question). Only override while NOT focused
-  // so the user's in-progress typing isn't clobbered.
   useEffect(() => {
     if (!focused) setText(String(value));
   }, [value, focused]);
 
-  // When a new question loads (disabled toggling false), focus & select.
   useEffect(() => {
     if (!disabled) inputRef.current?.focus();
   }, [disabled]);
 
+  useEffect(() => {
+    return () => {
+      if (errorTimer.current) window.clearTimeout(errorTimer.current);
+    };
+  }, []);
+
+  const flashError = (message: string) => {
+    setError(message);
+    if (errorTimer.current) window.clearTimeout(errorTimer.current);
+    errorTimer.current = window.setTimeout(() => setError(null), 1800);
+  };
+
+  const era = eraForYear(value);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    // Allow empty and partial input (e.g., "1", "19", or even "") while typing.
     if (raw === "") {
       setText("");
+      setError(null);
       return;
     }
-    // Strip any stray non-digits but allow up to 4 digits 0..2000.
     const cleaned = raw.replace(/[^\d]/g, "").slice(0, 4);
-    setText(cleaned);
     const parsed = parseInt(cleaned, 10);
+
+    if (!Number.isNaN(parsed) && parsed > 2000) {
+      // Clamp visibly to 2000 and flash a warning.
+      setText("2000");
+      onChange(2000);
+      flashError("Maks 2000");
+      return;
+    }
+    setText(cleaned);
     if (!Number.isNaN(parsed)) {
-      // Only push valid in-range values out so the slider/timeline track typing.
       onChange(clampYear(parsed));
+      setError(null);
     }
   };
 
   const commit = () => {
     if (text === "") {
-      // Empty on blur → snap to current parent value (last valid)
       setText(String(value));
       return;
     }
@@ -59,6 +78,8 @@ export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
 
   const bump = (delta: number) => {
     const next = clampYear(value + delta);
+    if (value + delta > 2000 && delta > 0) flashError("Maks 2000");
+    if (value + delta < 0 && delta < 0) flashError("Min 0");
     onChange(next);
     setText(String(next));
   };
@@ -76,9 +97,7 @@ export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
           <Minus className="w-4 h-4" />
         </button>
 
-        <div
-          className={`relative transition-all ${focused ? "scale-[1.02]" : ""}`}
-        >
+        <div className={`relative transition-transform ${focused ? "scale-[1.02]" : ""}`}>
           <input
             ref={inputRef}
             type="text"
@@ -90,7 +109,6 @@ export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
             disabled={disabled}
             onFocus={(e) => {
               setFocused(true);
-              // Select all so typing instantly replaces the value.
               requestAnimationFrame(() => e.target.select());
             }}
             onBlur={() => {
@@ -111,20 +129,41 @@ export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
               }
             }}
             placeholder="—"
-            className="number-display w-44 sm:w-52 text-center text-5xl sm:text-6xl font-semibold bg-transparent outline-none caret-[color:var(--accent)] transition-colors"
+            className="number-display w-44 sm:w-52 text-center text-5xl sm:text-6xl font-semibold bg-transparent outline-none transition-colors"
             style={{ caretColor: "var(--accent)" }}
             aria-label="Skriv inn årstall (0–2000)"
+            aria-invalid={!!error}
           />
           <div
             className={`absolute left-0 right-0 -bottom-1 h-[2px] rounded-full transition-all ${
               focused ? "opacity-100" : "opacity-60"
             }`}
             style={{
-              background: focused
+              background: error
+                ? "var(--bad)"
+                : focused
                 ? "var(--accent)"
-                : "color-mix(in oklab, var(--line) 100%, transparent)",
+                : "var(--line)",
             }}
           />
+
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                key={error}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.18 }}
+                className="absolute left-1/2 -translate-x-1/2 -bottom-7 flex items-center gap-1 text-xs whitespace-nowrap"
+                style={{ color: "var(--bad)" }}
+                role="alert"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                {error}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <button
@@ -138,16 +177,16 @@ export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
         </button>
       </div>
 
-      <div className="flex justify-center -mt-2">
+      <div className="flex justify-center pt-3">
         <span
           className="chip"
           style={{
-            color: eraForYear(value).color,
-            borderColor: eraForYear(value).color + "44",
-            background: eraForYear(value).color + "10",
+            color: era.color,
+            borderColor: era.color + "44",
+            background: era.color + "10",
           }}
         >
-          Du gjetter i {eraForYear(value).label}
+          Du gjetter i {era.label}
         </span>
       </div>
 
@@ -163,6 +202,7 @@ export function YearInput({ value, onChange, onSubmit, disabled }: Props) {
             const n = clampYear(parseInt(e.target.value, 10));
             onChange(n);
             setText(String(n));
+            setError(null);
           }}
           aria-label="Velg år med slider"
         />

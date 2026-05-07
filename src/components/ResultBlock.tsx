@@ -12,9 +12,11 @@ interface Props {
   isLast: boolean;
   onNext: () => void;
   eventText: string;
+  /** If set, button shows a fill animation lasting this many ms (auto-advance hint). */
+  autoAdvanceMs?: number;
 }
 
-export function ResultBlock({ attempt, isLast, onNext, eventText }: Props) {
+export function ResultBlock({ attempt, isLast, onNext, eventText, autoAdvanceMs }: Props) {
   const { diff, points, guess, actual, questionId } = attempt;
   const tone =
     diff === 0 ? "good"
@@ -28,13 +30,14 @@ export function ResultBlock({ attempt, isLast, onNext, eventText }: Props) {
   const decade = decadeLabel(actual);
   const century = centuryLabel(actual);
   const related = relatedEvents(actual, questionId, 12, 4);
+  const nextLabel = isLast ? "Se resultatet" : "Neste";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="card p-6 sm:p-10 space-y-8"
+      className="card p-6 sm:p-10 space-y-7"
     >
       {/* hero header */}
       <div className="grid sm:grid-cols-[1fr,auto] gap-6 items-start">
@@ -56,21 +59,30 @@ export function ResultBlock({ attempt, isLast, onNext, eventText }: Props) {
           </div>
         </div>
 
-        <motion.div
-          initial={{ scale: 0.7, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.15, type: "spring", stiffness: 240, damping: 16 }}
-          className="rounded-2xl border hairline px-6 py-4 text-center min-w-[140px] flex-shrink-0 self-start"
-          style={{
-            background: `color-mix(in oklab, ${color} 12%, var(--bg-elev))`,
-            borderColor: `color-mix(in oklab, ${color} 35%, var(--line))`,
-          }}
-        >
-          <div className="number-display text-4xl sm:text-5xl font-bold leading-none" style={{ color }}>
-            +{points}
-          </div>
-          <div className="text-[10px] uppercase tracking-widest text-mute mt-2">poeng</div>
-        </motion.div>
+        <div className="flex sm:flex-col items-stretch sm:items-end gap-3">
+          <motion.div
+            initial={{ scale: 0.7, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.15, type: "spring", stiffness: 240, damping: 16 }}
+            className="rounded-2xl border hairline px-6 py-4 text-center min-w-[140px] flex-shrink-0"
+            style={{
+              background: `color-mix(in oklab, ${color} 12%, var(--bg-elev))`,
+              borderColor: `color-mix(in oklab, ${color} 35%, var(--line))`,
+            }}
+          >
+            <div className="number-display text-4xl sm:text-5xl font-bold leading-none" style={{ color }}>
+              +{points}
+            </div>
+            <div className="text-[10px] uppercase tracking-widest text-mute mt-2">poeng</div>
+          </motion.div>
+
+          <NextButton
+            label={nextLabel}
+            onClick={onNext}
+            autoAdvanceMs={autoAdvanceMs}
+            variant="prominent"
+          />
+        </div>
       </div>
 
       {/* fact strip */}
@@ -137,12 +149,46 @@ export function ResultBlock({ attempt, isLast, onNext, eventText }: Props) {
       )}
 
       <div className="flex justify-end pt-1">
-        <button onClick={onNext} className="btn-primary text-base px-6 py-3">
-          {isLast ? "Se resultatet" : "Neste"}
-          <ArrowRight className="w-4 h-4" />
-        </button>
+        <NextButton
+          label={nextLabel}
+          onClick={onNext}
+          autoAdvanceMs={autoAdvanceMs}
+          variant="prominent"
+        />
       </div>
     </motion.div>
+  );
+}
+
+function NextButton({
+  label, onClick, autoAdvanceMs, variant,
+}: {
+  label: string;
+  onClick: () => void;
+  autoAdvanceMs?: number;
+  variant?: "prominent";
+}) {
+  const isAuto = !!autoAdvanceMs;
+  return (
+    <button
+      onClick={onClick}
+      className={`btn-primary relative overflow-hidden ${variant === "prominent" ? "text-base px-6 py-3" : ""}`}
+      aria-label={label}
+    >
+      {isAuto && (
+        <motion.span
+          initial={{ width: 0 }}
+          animate={{ width: "100%" }}
+          transition={{ duration: (autoAdvanceMs ?? 0) / 1000, ease: "linear" }}
+          className="absolute inset-y-0 left-0"
+          style={{ background: "rgba(255,255,255,0.22)" }}
+        />
+      )}
+      <span className="relative flex items-center gap-2">
+        {label}
+        <ArrowRight className="w-4 h-4" />
+      </span>
+    </button>
   );
 }
 

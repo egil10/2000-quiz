@@ -25,7 +25,7 @@ export function ThemeToggle() {
   const change = (t: Theme) => {
     setTheme(t);
     applyTheme(t);
-    saveSettings({ theme: t });
+    saveSettings({ ...loadSettings(), theme: t });
     setOpen(false);
   };
 

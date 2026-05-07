@@ -100,18 +100,23 @@ export function recordSession(prev: PlayerStats, session: GameSession): PlayerSt
   return next;
 }
 
+export type AutoAdvance = "off" | "3" | "5";
+
 export type Settings = {
   theme: "lys" | "morke" | "pergament";
+  autoAdvance: AutoAdvance;
 };
 
+const DEFAULT_SETTINGS: Settings = { theme: "morke", autoAdvance: "off" };
+
 export function loadSettings(): Settings {
-  if (typeof window === "undefined") return { theme: "morke" };
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { theme: "morke" };
-    return { theme: "morke", ...(JSON.parse(raw) as Partial<Settings>) };
+    if (!raw) return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
   } catch {
-    return { theme: "morke" };
+    return DEFAULT_SETTINGS;
   }
 }
 

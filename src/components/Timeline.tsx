@@ -7,15 +7,36 @@ interface Props {
   actual: number;
 }
 
+function labelStyle(pct: number): React.CSSProperties {
+  // Edge-aware horizontal anchoring so labels never overflow the parent.
+  if (pct < 8) return { left: 0 };
+  if (pct > 92) return { right: 0, left: "auto" };
+  return { left: `${pct}%`, transform: "translateX(-50%)" };
+}
+
 export function Timeline({ guess, actual }: Props) {
-  const guessPct = (guess / 2000) * 100;
-  const actualPct = (actual / 2000) * 100;
+  const guessPct = Math.max(0, Math.min(100, (guess / 2000) * 100));
+  const actualPct = Math.max(0, Math.min(100, (actual / 2000) * 100));
   const min = Math.min(guessPct, actualPct);
   const width = Math.abs(guessPct - actualPct);
 
   return (
-    <div className="space-y-1">
-      <div className="relative h-32 sm:h-36 w-full rounded-2xl border hairline bg-soft overflow-hidden">
+    <div className="space-y-1.5">
+      {/* Top label row (guess) — outside the body so labels can never overflow */}
+      <div className="relative h-6">
+        <motion.div
+          initial={{ y: 8, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1, type: "spring", stiffness: 240, damping: 22 }}
+          className="absolute top-0 px-2 py-0.5 rounded-full text-[11px] font-medium border hairline whitespace-nowrap"
+          style={{ ...labelStyle(guessPct), background: "var(--bg-elev)", color: "var(--fg-soft)" }}
+        >
+          Du · {guess}
+        </motion.div>
+      </div>
+
+      {/* Timeline body */}
+      <div className="relative h-20 sm:h-24 w-full rounded-2xl border hairline bg-soft overflow-hidden">
         {/* era backgrounds */}
         <div className="absolute inset-0 flex">
           {ERAS.map((era, i) => (
@@ -24,12 +45,21 @@ export function Timeline({ guess, actual }: Props) {
               className="relative h-full border-r hairline last:border-r-0"
               style={{
                 width: `${((era.to - era.from) / 2000) * 100}%`,
-                background: i % 2 === 0 ? "color-mix(in oklab, var(--bg-elev) 35%, transparent)" : "transparent",
+                background: i % 2 === 0
+                  ? "color-mix(in oklab, var(--bg-elev) 35%, transparent)"
+                  : "transparent",
               }}
             >
               <span
                 className="absolute bottom-1 left-1.5 text-[9px] uppercase tracking-wider"
-                style={{ color: "color-mix(in oklab, var(--fg-mute) 80%, transparent)" }}
+                style={{
+                  color: "color-mix(in oklab, var(--fg-mute) 80%, transparent)",
+                  maxWidth: "calc(100% - 8px)",
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  display: "block",
+                }}
               >
                 {era.short}
               </span>
@@ -69,46 +99,50 @@ export function Timeline({ guess, actual }: Props) {
           className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full"
         />
 
-        {/* guess marker */}
+        {/* dots */}
         <motion.div
-          initial={{ y: 30, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.05, type: "spring", stiffness: 220, damping: 22 }}
-          className="absolute top-3 -translate-x-1/2 flex flex-col items-center"
-          style={{ left: `${guessPct}%` }}
-        >
-          <div
-            className="px-2 py-0.5 rounded-full text-[10px] font-medium border hairline whitespace-nowrap"
-            style={{ background: "var(--bg-elev)", color: "var(--fg-soft)" }}
-          >
-            Du · {guess}
-          </div>
-          <div className="w-2 h-2 rounded-full mt-1" style={{ background: "var(--fg-soft)" }} />
-        </motion.div>
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.05, type: "spring", stiffness: 240, damping: 16 }}
+          className="absolute top-1/2 w-3 h-3 rounded-full"
+          style={{
+            left: `${guessPct}%`,
+            transform: "translate(-50%, -50%)",
+            background: "var(--fg-soft)",
+            border: "2px solid var(--bg-elev)",
+            boxShadow: "0 0 0 1px color-mix(in oklab, var(--fg-soft) 30%, transparent)",
+          }}
+        />
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.45, type: "spring", stiffness: 240, damping: 14 }}
+          className="absolute top-1/2 w-3.5 h-3.5 rounded-full"
+          style={{
+            left: `${actualPct}%`,
+            transform: "translate(-50%, -50%)",
+            background: "var(--accent)",
+            border: "2px solid var(--bg-elev)",
+            boxShadow: "0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent)",
+          }}
+        />
+      </div>
 
-        {/* actual marker */}
+      {/* Bottom label row (actual) */}
+      <div className="relative h-6">
         <motion.div
-          initial={{ y: -30, opacity: 0, scale: 0.6 }}
-          animate={{ y: 0, opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5, type: "spring", stiffness: 220, damping: 18 }}
-          className="absolute bottom-5 -translate-x-1/2 flex flex-col items-center"
-          style={{ left: `${actualPct}%` }}
+          initial={{ y: -8, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.55, type: "spring", stiffness: 240, damping: 22 }}
+          className="absolute top-0 px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap"
+          style={{ ...labelStyle(actualPct), background: "var(--accent)", color: "#fff" }}
         >
-          <div className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent)" }} />
-          <div
-            className="mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap"
-            style={{
-              color: "#fff",
-              background: "var(--accent)",
-              borderColor: "transparent",
-            }}
-          >
-            Fasit · {actual}
-          </div>
+          Fasit · {actual}
         </motion.div>
       </div>
 
-      <div className="flex justify-between text-[10px] text-mute px-1 number-display">
+      {/* axis */}
+      <div className="flex justify-between text-[10px] text-mute px-1 number-display pt-0.5">
         <span>0</span>
         <span>500</span>
         <span>1000</span>
