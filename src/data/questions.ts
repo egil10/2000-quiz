@@ -475,6 +475,107 @@ function norm(s: string): string {
     .trim();
 }
 
+// Strip year mentions and citation cruft from event text so the question
+// doesn't spoil its own answer. Applied to every event regardless of source.
+function stripYearMentions(text: string, answerYear: number): string {
+  // Decode the small set of HTML entities Wikipedia leaves in plain text.
+  // &ndash: with a colon is a real typo we've seen — treat it like the dash.
+  let s = text
+    .replace(/&ndash[;:]/g, "–")
+    .replace(/&mdash[;:]/g, "—")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#?\w+;/g, " ");
+
+  // Trailing citation cruft: ". Hentet 16. februar 2017.", "Wikipedia ...",
+  // "Store norske leksikon ...", URLs, etc.
+  s = s.replace(
+    /\s*[.;]\s*(?:Hentet|Besøkt|Wikipedia|Encyclopædia|Store [Nn]orske [Ll]eksikon|Snl|English Monarchs|Gaski[, ]).*$/u,
+    "."
+  );
+  s = s.replace(/\s*\(besøkt[^)]*\)/gi, "");
+  s = s.replace(/https?:\/\/\S+/g, "");
+
+  // Lifespan/span parentheticals: (1019–1074), (ca. 963-1000), (d. 1050),
+  // (død 691), (født 1820), (1700-1721)
+  s = s.replace(
+    /\s*\((?:ca\.?\s*|d\.\s*|død\s+|født\s+)?\d{1,4}(?:\s*[–\-]\s*\d{1,4})?\s*\)/g,
+    ""
+  );
+  // Any other parenthetical that contains a 4-digit year is almost always a
+  // year-annotation (e.g. "(Toy Story var 1995)") — drop the whole thing.
+  s = s.replace(/\s*\([^)]*\b(?:1\d{3}|20[0-2]\d)\b[^)]*\)/g, "");
+  // Leading range "1562–1598: …" or "1768–1771 – …"
+  s = s.replace(/^\s*\d{3,4}\s*[–\-]\s*\d{3,4}\s*[:–\-]\s*/u, "");
+  // Inline year range "1700–1721" / "(1700-1721"
+  s = s.replace(/\s*\(?\d{3,4}\s*[–\-]\s*\d{3,4}\)?/g, "");
+
+  // Range patterns where answer year is one endpoint (e.g. "68-69",
+  // "535-536"). Strip ranges before the bare answer-year strip so we don't
+  // leave a dangling "-69".
+  if (answerYear > 0) {
+    const ay = String(answerYear);
+    s = s.replace(new RegExp(`\\b${ay}\\s*[–\\-]\\s*\\d{1,4}\\b`, "g"), "");
+    s = s.replace(new RegExp(`\\b\\d{1,4}\\s*[–\\-]\\s*${ay}\\b`, "g"), "");
+  }
+
+  // "i 1885", "fra 1664", "til 1689", "før år 1000", "etter 1066",
+  // "frem til 1689", "rundt 1000", "omkring 800". Restricted to 3–4 digits
+  // so we don't strip counts like "rundt 19 000 opprørere" or "etter 18 år".
+  // "ca." is excluded because "ca. 300 biskoper" is a count, not a year.
+  s = s.replace(
+    /\s+(?:[Ii]|fra|til|før|etter|innen|frem\s+til|rundt|omkring)\s+(?:år\s+)?\d{3,4}\b/gu,
+    ""
+  );
+  // "fra NN til dette året" / "fra NN til NN" — Wikipedia stub cruft for
+  // short pre-1000 years that the broader preposition strip doesn't catch.
+  s = s.replace(/\s+fra\s+\d{1,4}\s+til\s+(?:dette\s+året|\d{1,4})\b/giu, "");
+  // Sentence-leading "I 1624 …" / "I 645 …" / "År 1066 …"
+  s = s.replace(/^(?:I|År)\s+(?:år\s+)?\d{1,4}\b\s*,?\s*/u, "");
+  // "år NNNN" generically
+  s = s.replace(/\s+år\s+\d{3,4}\b/gu, "");
+  // "ca. NNNN" only when the number is a plausible year (4-digit)
+  s = s.replace(/\s+(?:cirka|ca\.?)\s+\d{4}\b/giu, "");
+
+  // Dates like "10. juni 1940", "16. februar 2017" — drop the trailing year
+  s = s.replace(
+    /(\b\d{1,2}\.\s*(?:januar|februar|mars|april|mai|juni|juli|august|september|oktober|november|desember))\s+\d{3,4}\b/giu,
+    "$1"
+  );
+
+  // Solitary year in parens: "Slaget om København (1807)"
+  s = s.replace(/\s*\(\d{3,4}\)/g, "");
+
+  // Bare answer year (handles whatever's left, including 1–3 digit cases)
+  if (answerYear > 0) {
+    s = s.replace(new RegExp(`\\b${answerYear}\\b`, "g"), "");
+  }
+  // Final pass: any remaining 4-digit year (1000–2099) — bare numbers
+  s = s.replace(/\b(?:1\d{3}|20[0-2]\d)\b/g, "");
+
+  // Cleanup: empty parens, dangling punctuation, doubled spaces
+  s = s.replace(/\([^)]*\b(?:død|født|d\.|ca\.)\s*\)/g, "");
+  s = s.replace(/\(\s*\)/g, "");
+  s = s.replace(/\s+([,.;:!?])/g, "$1");
+  s = s.replace(/\s{2,}/g, " ");
+  // Trailing "(" left from "Den store nordiske krig 1700-1721)" cleanups
+  s = s.replace(/\s+\)/g, "");
+  s = s.replace(/^[\s,.;:–\-—]+/u, "");
+  s = s.replace(/[\s,;:]+\.$/u, ".");
+  // Drop dangling sentence-final prepositions left after a stripped year.
+  // Lowercase-only to avoid stripping the roman numeral "I" (e.g. "Pave Klemens I.").
+  // "etter" is excluded because of the adverbial "året etter".
+  s = s.replace(/\s+(?:i|fra|til|før|innen|rundt|omkring|frem til)([.,;:]?)\s*$/u, "$1");
+  // Collapse accidental duplicated consecutive words ("Pave Pave", "i i", "er er").
+  // Case-sensitive on purpose: "Pave Klemens I i Roma" must not collapse "I i"
+  // because "I" is a roman numeral and "i" is the preposition.
+  s = s.replace(/\b([\p{L}]+)\s+\1\b/gu, "$1");
+  s = s.trim();
+
+  return s;
+}
+
 // Build the final dataset by combining the curated list (priority) with the
 // Wikipedia-sourced events. Curated entries win on duplicate keys, and
 // Wikipedia entries that closely overlap a curated entry from the same year
@@ -519,7 +620,10 @@ function buildDataset(): QuizQuestion[] {
     a.year - b.year || a.event.localeCompare(b.event, "nb"),
   );
 
-  return result.map((q, i) => ({ ...q, id: i + 1 }));
+  return result
+    .map((q) => ({ ...q, event: stripYearMentions(q.event, q.year) }))
+    .filter((q) => q.event.length >= 8)
+    .map((q, i) => ({ ...q, id: i + 1 }));
 }
 
 export const QUESTIONS: QuizQuestion[] = buildDataset();

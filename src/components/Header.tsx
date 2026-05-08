@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Hourglass, BarChart3, Sparkles, Library } from "lucide-react";
+import { Hourglass, BarChart3, Sparkles, Library, Telescope } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -9,6 +9,7 @@ export function Header() {
   const pathname = usePathname();
   const links = [
     { href: "/play", label: "Spill", icon: Sparkles },
+    { href: "/tidslinje", label: "Tidslinje", icon: Telescope },
     { href: "/historikk", label: "Historikk", icon: Library },
     { href: "/stats", label: "Statistikk", icon: BarChart3 },
   ];

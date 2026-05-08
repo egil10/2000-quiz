@@ -22,7 +22,7 @@ export default function PlayClient() {
   const modeParam = (params.get("mode") || "klassisk") as GameMode;
   const initialMode: GameMode = VALID.includes(modeParam) ? modeParam : "klassisk";
 
-  const { state, submit, next, restart, totalPoints, lastAttempt } =
+  const { state, submit, next, useHint, restart, totalPoints, lastAttempt } =
     useGameState(initialMode);
 
   const cfg = modeConfig(state.mode);
@@ -129,6 +129,7 @@ export default function PlayClient() {
           totalPoints={totalPoints}
           mode={state.mode}
           highScore={stats?.highScores[state.mode] ?? 0}
+          hintsUsed={state.hintsUsed}
           onRestart={() => restartFresh(state.mode)}
         />
       </div>
@@ -179,6 +180,8 @@ export default function PlayClient() {
             index={state.index}
             total={cfg.questionCount}
             timeLeft={timeLeft}
+            hintUsed={state.hintUsed}
+            onUseHint={useHint}
           />
           <div className="card p-6 sm:p-8">
             <YearInput

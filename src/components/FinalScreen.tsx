@@ -1,7 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { Sparkles, RotateCcw, Home, Trophy } from "lucide-react";
+import { Sparkles, RotateCcw, Home, Trophy, Lightbulb } from "lucide-react";
 import type { AttemptResult, GameMode } from "@/types/game";
 import { ratingForPoints } from "@/lib/scoring";
 import { categoryMeta } from "./categoryMeta";
@@ -13,9 +13,10 @@ interface Props {
   mode: GameMode;
   onRestart: () => void;
   highScore: number;
+  hintsUsed: number;
 }
 
-export function FinalScreen({ attempts, totalPoints, mode, onRestart, highScore }: Props) {
+export function FinalScreen({ attempts, totalPoints, mode, onRestart, highScore, hintsUsed }: Props) {
   const avgDiff = attempts.length
     ? attempts.reduce((s, a) => s + a.diff, 0) / attempts.length
     : 0;
@@ -23,6 +24,7 @@ export function FinalScreen({ attempts, totalPoints, mode, onRestart, highScore 
   const avgPoints = attempts.length ? totalPoints / attempts.length : 0;
   const rating = ratingForPoints(avgPoints);
   const isNewHigh = totalPoints > 0 && totalPoints >= highScore;
+  const hintRate = attempts.length ? Math.round((hintsUsed / attempts.length) * 100) : 0;
 
   return (
     <motion.div
@@ -51,11 +53,16 @@ export function FinalScreen({ attempts, totalPoints, mode, onRestart, highScore 
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Stat label="Spørsmål" value={attempts.length.toString()} />
         <Stat label="Total bom" value={`${attempts.reduce((s, a) => s + a.diff, 0).toLocaleString("nb-NO")} år`} />
         <Stat label="Snitt bom" value={`${Math.round(avgDiff)} år`} />
         <Stat label="Blink" value={perfect.toString()} />
+        <Stat
+          label="Hint brukt"
+          value={`${hintsUsed}${attempts.length ? ` · ${hintRate}%` : ""}`}
+          icon={Lightbulb}
+        />
       </div>
 
       <div className="card p-5">
@@ -98,10 +105,18 @@ export function FinalScreen({ attempts, totalPoints, mode, onRestart, highScore 
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label, value, icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ElementType;
+}) {
   return (
     <div className="card p-4 text-center">
-      <p className="text-xs text-mute uppercase tracking-wider">{label}</p>
+      <p className="text-xs text-mute uppercase tracking-wider flex items-center justify-center gap-1">
+        {Icon && <Icon className="w-3 h-3" />} {label}
+      </p>
       <p className="number-display text-2xl font-semibold mt-1">{value}</p>
     </div>
   );

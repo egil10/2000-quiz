@@ -46,11 +46,14 @@ interface State {
   phase: Phase;
   lives: number;
   startedAt: number;
+  hintUsed: boolean;
+  hintsUsed: number;
 }
 
 type Action =
   | { type: "submit"; guess: number; points: number; attempt: AttemptResult }
   | { type: "next" }
+  | { type: "hint" }
   | { type: "end" }
   | { type: "restart"; mode: GameMode };
 
@@ -73,6 +76,8 @@ function init(mode: GameMode): State {
     phase: "guessing",
     lives: modeConfig(mode).livesEnabled ? 1 : Infinity,
     startedAt: Date.now(),
+    hintUsed: false,
+    hintsUsed: 0,
   };
 }
 
@@ -91,6 +96,14 @@ function reducer(state: State, action: Action): State {
         lives,
       };
     }
+    case "hint": {
+      if (state.hintUsed) return state;
+      return {
+        ...state,
+        hintUsed: true,
+        hintsUsed: state.hintsUsed + 1,
+      };
+    }
     case "next": {
       const cfg = modeConfig(state.mode);
       if (state.lives <= 0) {
@@ -106,6 +119,7 @@ function reducer(state: State, action: Action): State {
         index: nextIndex,
         current: state.queue[nextIndex],
         phase: "guessing",
+        hintUsed: false,
       };
     }
     case "end":
@@ -140,6 +154,7 @@ export function useGameState(initialMode: GameMode = "klassisk") {
   );
 
   const next = useCallback(() => dispatch({ type: "next" }), []);
+  const useHint = useCallback(() => dispatch({ type: "hint" }), []);
   const restart = useCallback((mode: GameMode) => dispatch({ type: "restart", mode }), []);
   const end = useCallback(() => dispatch({ type: "end" }), []);
 
@@ -150,5 +165,5 @@ export function useGameState(initialMode: GameMode = "klassisk") {
 
   const lastAttempt = state.attempts[state.attempts.length - 1] ?? null;
 
-  return { state, submit, next, restart, end, totalPoints, lastAttempt };
+  return { state, submit, next, useHint, restart, end, totalPoints, lastAttempt };
 }
